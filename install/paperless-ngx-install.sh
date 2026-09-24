@@ -8,7 +8,9 @@
 # ANGEPASST: installiert fest Paperless-ngx v2.15.2 (fuer Import eines alten Exports)
 # Aenderungen gegenueber Upstream:
 #   - Version fest auf v2.15.2 statt "latest"
-#   - Python 3.12 statt 3.13 (passend fuer die alte 2.x-Version)
+#   - Python 3.13 bewusst beibehalten: der uv.lock von v2.15.2 zieht fuer Python 3.12
+#     Sonder-Wheels (zxing-cpp, psycopg-c) von paperless-ngx/builder, deren Hash
+#     inzwischen nicht mehr passt. Mit 3.13 kommen diese Pakete regulaer von PyPI.
 #   - kein admin-Benutzer, da die Benutzer mit dem Import kommen
 
 PAPERLESS_VERSION="v2.15.2"
@@ -54,12 +56,12 @@ msg_ok "Installed Dependencies"
 PG_VERSION="18" setup_postgresql
 PG_DB_NAME="paperlessdb" PG_DB_USER="paperless" setup_postgresql_db
 fetch_and_deploy_gh_release "paperless" "paperless-ngx/paperless-ngx" "prebuild" "$PAPERLESS_VERSION" "/opt/paperless" "paperless*tar.xz"
-PYTHON_VERSION="3.12" UV_PROJECT_DIR="/opt/paperless" setup_uv
+PYTHON_VERSION="3.13" UV_PROJECT_DIR="/opt/paperless" setup_uv
 
 msg_info "Setup Paperless-ngx $PAPERLESS_VERSION"
 cd /opt/paperless
 rm -rf /opt/paperless/docker
-$STD uv sync --all-extras --python 3.12
+$STD uv sync --all-extras --python 3.13
 mkdir -p /opt/paperless_data/{consume,data,media,trash}
 mkdir -p /opt/paperless/static
 SECRET_KEY="$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 32)"
