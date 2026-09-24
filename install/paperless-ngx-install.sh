@@ -11,6 +11,7 @@
 #   - Python 3.13 bewusst beibehalten: der uv.lock von v2.15.2 zieht fuer Python 3.12
 #     Sonder-Wheels (zxing-cpp, psycopg-c) von paperless-ngx/builder, deren Hash
 #     inzwischen nicht mehr passt. Mit 3.13 kommen diese Pakete regulaer von PyPI.
+#   - psycopg[binary] statt psycopg-c (siehe Kommentar bei uv sync)
 #   - kein admin-Benutzer, da die Benutzer mit dem Import kommen
 
 PAPERLESS_VERSION="v2.15.2"
@@ -61,7 +62,10 @@ PYTHON_VERSION="3.13" UV_PROJECT_DIR="/opt/paperless" setup_uv
 msg_info "Setup Paperless-ngx $PAPERLESS_VERSION"
 cd /opt/paperless
 rm -rf /opt/paperless/docker
-$STD uv sync --all-extras --python 3.13
+# Extra "postgres" wuerde psycopg-c 3.2.5 aus dem Quellcode bauen, das kompiliert nicht
+# gegen die PostgreSQL-18-Header. Stattdessen psycopg[binary] in gleicher Version (fertiges Wheel).
+$STD uv sync --extra webserver --python 3.13
+$STD uv pip install "psycopg[binary]==3.2.5"
 mkdir -p /opt/paperless_data/{consume,data,media,trash}
 mkdir -p /opt/paperless/static
 SECRET_KEY="$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 32)"
