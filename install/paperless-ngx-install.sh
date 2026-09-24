@@ -4,6 +4,14 @@
 # Author: tteck (tteckster) | MickLesk (CanbiZ)
 # License: MIT | https://github.com/community-scripts/ProxmoxVE/raw/main/LICENSE
 # Source: https://docs.paperless-ngx.com/ | Github: https://github.com/paperless-ngx/paperless-ngx
+#
+# ANGEPASST: installiert fest Paperless-ngx v2.15.2 (fuer Import eines alten Exports)
+# Aenderungen gegenueber Upstream:
+#   - Version fest auf v2.15.2 statt "latest"
+#   - Python 3.12 statt 3.13 (passend fuer die alte 2.x-Version)
+#   - kein admin-Benutzer, da die Benutzer mit dem Import kommen
+
+PAPERLESS_VERSION="v2.15.2"
 
 source /dev/stdin <<<"$FUNCTIONS_FILE_PATH"
 color
@@ -45,21 +53,23 @@ msg_ok "Installed Dependencies"
 
 PG_VERSION="18" setup_postgresql
 PG_DB_NAME="paperlessdb" PG_DB_USER="paperless" setup_postgresql_db
-fetch_and_deploy_gh_release "paperless" "paperless-ngx/paperless-ngx" "prebuild" "latest" "/opt/paperless" "paperless*tar.xz"
-PYTHON_VERSION="3.13" UV_PROJECT_DIR="/opt/paperless" setup_uv
+fetch_and_deploy_gh_release "paperless" "paperless-ngx/paperless-ngx" "prebuild" "$PAPERLESS_VERSION" "/opt/paperless" "paperless*tar.xz"
+PYTHON_VERSION="3.12" UV_PROJECT_DIR="/opt/paperless" setup_uv
 
-msg_info "Setup Paperless-ngx"
+msg_info "Setup Paperless-ngx $PAPERLESS_VERSION"
 cd /opt/paperless
 rm -rf /opt/paperless/docker
-$STD uv sync --all-extras
+$STD uv sync --all-extras --python 3.12
 mkdir -p /opt/paperless_data/{consume,data,media,trash}
 mkdir -p /opt/paperless/static
 SECRET_KEY="$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 32)"
 cat <<EOF >~/paperless-ngx.creds
 
+Paperless-ngx Version: $PAPERLESS_VERSION
 Paperless-ngx Secret Key: $SECRET_KEY
-Paperless-ngx WebUI User: admin
-Paperless-ngx WebUI Password: $PG_DB_PASS
+Paperless-ngx DB Password: $PG_DB_PASS
+Hinweis: Kein WebUI-Benutzer angelegt - die Benutzer kommen mit dem Import.
+Admin manuell anlegen: cd /opt/paperless/src && set -a && . /opt/paperless/paperless.conf && set +a && uv run --no-sync -- python manage.py createsuperuser
 EOF
 sed -i \
   -e 's|#PAPERLESS_REDIS=redis://localhost:6379|PAPERLESS_REDIS=redis://localhost:6379|' \
@@ -80,18 +90,7 @@ set -a
 . /opt/paperless/paperless.conf
 set +a
 $STD uv run -- python manage.py migrate
-msg_ok "Setup Paperless-ngx"
-
-msg_info "Setting up admin Paperless-ngx User & Password"
-cat <<EOF | uv run -- python /opt/paperless/src/manage.py shell
-from django.contrib.auth import get_user_model
-UserModel = get_user_model()
-user = UserModel.objects.create_user('admin', password='$PG_DB_PASS')
-user.is_superuser = True
-user.is_staff = True
-user.save()
-EOF
-msg_ok "Set up admin Paperless-ngx User & Password"
+msg_ok "Setup Paperless-ngx $PAPERLESS_VERSION"
 
 setup_nltk "snowball_data stopwords punkt_tab" "/usr/share/nltk_data"
 for policy_file in /etc/ImageMagick-6/policy.xml /etc/ImageMagick-7/policy.xml; do
@@ -151,7 +150,6 @@ Requires=redis.service
 
 [Service]
 WorkingDirectory=/opt/paperless/src
-#ExecStartPre=uv run --no-sync -- python manage.py document_index reindex --if-needed --no-progress-bar
 ExecStart=uv run --no-sync -- granian --interface asginl --ws --loop uvloop "paperless.asgi:application"
 Environment=GRANIAN_HOST=::
 Environment=GRANIAN_PORT=8000
